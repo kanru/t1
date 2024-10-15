@@ -69,6 +69,10 @@ async fn main() -> anyhow::Result<()> {
                 );
                 return Ok(());
             }
+            if ev.sender().server_name().host() == "t2bot.io" {
+                tracing::info!("Ignore messages from t2bot.io (Telegram Bridge)");
+                return Ok(());
+            }
             let monitor_name = format!("{}/{}", ev.sender(), room.room_id());
             if let Some(monitor) = ActorRef::<MonitorMessage>::where_is(monitor_name.clone()) {
                 monitor.cast(MonitorMessage::RoomMessage(ev))?;
