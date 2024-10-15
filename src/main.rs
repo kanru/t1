@@ -14,7 +14,7 @@ use matrix_sdk::{
     Client, Room,
 };
 use ractor::{Actor, ActorRef};
-use tokio::time::Duration;
+use tokio::{signal::unix::SignalKind, time::Duration};
 
 mod actors;
 mod config;
@@ -114,10 +114,16 @@ async fn main() -> anyhow::Result<()> {
             .await?;
     }
 
+    let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate())?;
+    let mut sigint = tokio::signal::unix::signal(SignalKind::interrupt())?;
     loop {
         tokio::select! {
-            _ = tokio::signal::ctrl_c() => {
-                tracing::info!("Received signal, stopping the sync loop");
+            _ = sigterm.recv() => {
+                tracing::info!("Received terminate signal, stopping the sync loop");
+                break;
+            }
+            _ = sigint.recv() => {
+                tracing::info!("Received interrupt signal, stopping the sync loop");
                 break;
             }
             result = client.sync(SyncSettings::default()) => {
