@@ -1,6 +1,6 @@
 #![feature(async_closure)]
 
-use std::fs;
+use std::{fs, path::PathBuf};
 
 use actors::{monitor::MonitorMessage, spawner::SpawnerMessage, supervisor::Supervisor};
 use config::T1Config;
@@ -26,7 +26,12 @@ const MAX_MESSAGE_DELAY_MS: u32 = 10_000;
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let config_text = fs::read_to_string("config.toml")?;
+    let flags = xflags::parse_or_exit! {
+        /// Path to the config file (TOML)
+        required -c, --config config_path: PathBuf
+    };
+
+    let config_text = fs::read_to_string(flags.config)?;
     let config: T1Config = toml::from_str(&config_text)?;
 
     let t1bot = UserId::parse(&config.t1bot.user_id)?;
