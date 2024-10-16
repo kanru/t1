@@ -3,15 +3,16 @@ use ractor::{Actor, ActorProcessingErr, ActorRef};
 
 use crate::matrix::UserRoomId;
 
+#[derive(Debug)]
+pub(crate) enum ViolationKind {
+    Spam,
+}
+
 // TODO user real user_id and room_id type
 pub(crate) enum ModeratorMessage {
-    Ban {
+    Violation {
         user_room_id: UserRoomId,
-        reason: Option<&'static str>,
-    },
-    Kick {
-        user_room_id: UserRoomId,
-        reason: Option<&'static str>,
+        kind: ViolationKind,
     },
 }
 
@@ -37,32 +38,15 @@ impl Actor for Moderator {
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
-            ModeratorMessage::Ban {
-                user_room_id,
-                reason,
-            } => {
+            ModeratorMessage::Violation { user_room_id, kind } => {
                 if let Some(room) = state.get_room(&user_room_id.room_id) {
                     tracing::info!(
-                        "Baning user {} from {} for {}",
+                        "Kicking user {} from {} for {:?}",
                         user_room_id.user_id,
                         user_room_id.room_id,
-                        reason.unwrap_or("unknown reason")
+                        kind
                     );
-                    room.ban_user(&user_room_id.user_id, reason).await?;
-                }
-            }
-            ModeratorMessage::Kick {
-                user_room_id,
-                reason,
-            } => {
-                if let Some(room) = state.get_room(&user_room_id.room_id) {
-                    tracing::info!(
-                        "Kicking user {} from {} for {}",
-                        user_room_id.user_id,
-                        user_room_id.room_id,
-                        reason.unwrap_or("unknown reason")
-                    );
-                    room.kick_user(&user_room_id.user_id, reason).await?;
+                    room.kick_user(&user_room_id.user_id, Some("spam")).await?;
                 }
             }
         };

@@ -1,6 +1,9 @@
 use ractor::{concurrency::Duration, Actor, ActorRef};
 
-use crate::{actors::moderator::ModeratorMessage, matrix::UserRoomId};
+use crate::{
+    actors::moderator::{ModeratorMessage, ViolationKind},
+    matrix::UserRoomId,
+};
 
 use super::MonitorMessage;
 
@@ -42,9 +45,9 @@ impl Actor for LinkSpamMonitor {
                         if let Some(moderator) =
                             ActorRef::<ModeratorMessage>::where_is("moderator".into())
                         {
-                            moderator.cast(ModeratorMessage::Kick {
+                            moderator.cast(ModeratorMessage::Violation {
                                 user_room_id: state.user_room_id.clone(),
-                                reason: Some("spam"),
+                                kind: ViolationKind::Spam,
                             })?;
                         } else {
                             tracing::error!("Unable to find moderator");
