@@ -32,17 +32,25 @@ impl Actor for Spawner {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             SpawnerMessage::RegisterUser(user_room_id) => {
-                let monitor_name = format!("{}/{}", user_room_id.user_id, user_room_id.room_id);
-                if registry::where_is(monitor_name.clone()).is_none() {
-                    Actor::spawn_linked(Some(monitor_name), Monitor, user_room_id, myself.into())
-                        .await?;
+                if registry::where_is(user_room_id.to_string()).is_none() {
+                    Actor::spawn_linked(
+                        Some(user_room_id.to_string()),
+                        Monitor,
+                        user_room_id,
+                        myself.into(),
+                    )
+                    .await?;
                 }
             }
             SpawnerMessage::RegisterUserJoin(user_room_id) => {
-                let monitor_name = format!("{}/{}", user_room_id.user_id, user_room_id.room_id);
-                if registry::where_is(monitor_name.clone()).is_none() {
-                    Actor::spawn_linked(Some(monitor_name), Monitor, user_room_id, myself.into())
-                        .await?;
+                if registry::where_is(user_room_id.to_string()).is_none() {
+                    Actor::spawn_linked(
+                        Some(user_room_id.to_string()),
+                        Monitor,
+                        user_room_id,
+                        myself.into(),
+                    )
+                    .await?;
                 }
             }
         };

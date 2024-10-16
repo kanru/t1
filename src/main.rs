@@ -81,15 +81,15 @@ async fn main() -> anyhow::Result<()> {
                 tracing::info!("Ignore messages from t2bot.io (Telegram Bridge)");
                 return Ok(());
             }
-            let monitor_name = format!("{}/{}", ev.sender(), room.room_id());
-            if let Some(monitor) = ActorRef::<MonitorMessage>::where_is(monitor_name.clone()) {
+
+            let user_room_id = UserRoomId {
+                user_id: ev.sender().into(),
+                room_id: room.room_id().into(),
+            };
+            if let Some(monitor) = ActorRef::<MonitorMessage>::where_is(user_room_id.to_string()) {
                 monitor.cast(MonitorMessage::RoomMessage(ev))?;
             } else {
                 if let Some(spawner) = ActorRef::<SpawnerMessage>::where_is("spawner".into()) {
-                    let user_room_id = UserRoomId {
-                        user_id: ev.sender().into(),
-                        room_id: room.room_id().into(),
-                    };
                     spawner.cast(SpawnerMessage::RegisterUser(user_room_id))?;
                 }
             }
