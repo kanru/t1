@@ -13,6 +13,7 @@ pub(crate) struct T1Config {
 pub(crate) struct T1BotConfig {
     pub(crate) user_id: String,
     pub(crate) password: String,
+    pub(crate) display_name: String,
     pub(crate) device_id: String,
     pub(crate) device_name: String,
 }

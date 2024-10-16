@@ -55,7 +55,10 @@ async fn main() -> anyhow::Result<()> {
 
     client.sync_once(SyncSettings::default()).await?;
 
-    client.account().set_display_name(Some("RoboT1")).await?;
+    client
+        .account()
+        .set_display_name(Some(config.t1bot.display_name.as_str()))
+        .await?;
 
     let (supervisor, actor_handle) =
         Actor::spawn(Some("supervisor".into()), Supervisor, client.clone()).await?;
