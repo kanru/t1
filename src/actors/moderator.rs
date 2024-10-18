@@ -1,7 +1,7 @@
 use matrix_sdk::Client;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
 
-use crate::matrix::UserRoomId;
+use crate::{actors::monitor::Monitor, matrix::UserRoomId};
 
 #[derive(Debug)]
 pub(crate) enum ViolationKind {
@@ -49,6 +49,10 @@ impl Actor for Moderator {
                     );
                     room.kick_user(&user_room_id.user_id, Some(format!("{:?}", kind).as_str()))
                         .await?;
+                    // Stop the monitor
+                    if let Some(monitor) = ActorRef::<Monitor>::where_is(user_room_id.to_string()) {
+                        monitor.stop(Some("moderated".into()));
+                    }
                 }
             }
         };
