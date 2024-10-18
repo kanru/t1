@@ -86,7 +86,7 @@ impl Bucket {
             token_current: 3,
             token_max: 3,
             fill_rate: 3,
-            fill_freq: Duration::from_secs(10),
+            fill_freq: Duration::from_secs(60),
         }
     }
 

@@ -23,7 +23,7 @@ impl Actor for LinkSpamMonitor {
         myself: ractor::ActorRef<Self::Msg>,
         args: Self::Arguments,
     ) -> Result<Self::State, ractor::ActorProcessingErr> {
-        myself.send_after(Duration::from_secs(10), || MonitorMessage::Heartbeat);
+        myself.send_after(Duration::from_secs(30), || MonitorMessage::Heartbeat);
         Ok(LinkSpamState { user_room_id: args })
     }
 
