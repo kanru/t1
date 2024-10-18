@@ -2597,6 +2597,7 @@ dependencies = [
  "anyhow",
  "matrix-sdk",
  "ractor",
+ "rand",
  "serde",
  "tokio",
  "toml",

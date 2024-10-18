@@ -53,7 +53,7 @@ impl Actor for RateLimitMonitor {
                 }
                 myself.send_after(state.bucket.fill_freq, || MonitorMessage::Heartbeat);
             }
-            MonitorMessage::RoomMessage(_) => {
+            MonitorMessage::RoomMessage(_) | MonitorMessage::ReactionMessage(_) => {
                 if !state.bucket.consume(1) {
                     if let Some(moderator) =
                         ActorRef::<ModeratorMessage>::where_is("moderator".into())

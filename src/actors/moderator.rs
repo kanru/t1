@@ -6,6 +6,7 @@ use crate::matrix::UserRoomId;
 #[derive(Debug)]
 pub(crate) enum ViolationKind {
     Spam,
+    LikelyBot,
 }
 
 // TODO user real user_id and room_id type
@@ -46,7 +47,8 @@ impl Actor for Moderator {
                         user_room_id.room_id,
                         kind
                     );
-                    room.kick_user(&user_room_id.user_id, Some("spam")).await?;
+                    room.kick_user(&user_room_id.user_id, Some(format!("{:?}", kind).as_str()))
+                        .await?;
                 }
             }
         };

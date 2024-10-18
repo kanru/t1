@@ -1,10 +1,15 @@
+use captcha::{CaptchaInit, CaptchaMonitor};
 use link_spam::LinkSpamMonitor;
-use matrix_sdk::ruma::events::room::message::SyncRoomMessageEvent;
+use matrix_sdk::{
+    ruma::events::{reaction::SyncReactionEvent, room::message::SyncRoomMessageEvent},
+    Client,
+};
 use ractor::{concurrency::Duration, pg, Actor, ActorProcessingErr, ActorRef};
 use ratelimit::RateLimitMonitor;
 
 use crate::matrix::UserRoomId;
 
+mod captcha;
 mod link_spam;
 mod ratelimit;
 
@@ -14,6 +19,7 @@ const MONITOR_EXPIRE_TIMEOUT: u64 = 60 * 24;
 pub(crate) enum MonitorMessage {
     Heartbeat,
     RoomMessage(SyncRoomMessageEvent),
+    ReactionMessage(SyncReactionEvent),
 }
 
 pub(crate) struct MonitorState {
@@ -21,26 +27,44 @@ pub(crate) struct MonitorState {
     last_msg_age: u64,
 }
 
+pub(crate) enum MonitorInit {
+    Msg,
+    Join,
+}
+
 pub(crate) struct Monitor;
 
 impl Actor for Monitor {
     type State = MonitorState;
     type Msg = MonitorMessage;
-    type Arguments = UserRoomId;
+    type Arguments = (UserRoomId, Client, MonitorInit);
 
     async fn pre_start(
         &self,
         myself: ActorRef<Self::Msg>,
         args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
+        let mut monitors = vec![];
         let (ratelimit, _) =
-            Actor::spawn_linked(None, RateLimitMonitor, args.clone(), myself.get_cell()).await?;
+            Actor::spawn_linked(None, RateLimitMonitor, args.0.clone(), myself.get_cell()).await?;
+        monitors.push(ratelimit.get_cell());
         let (link_spam, _) =
-            Actor::spawn_linked(None, LinkSpamMonitor, args.clone(), myself.get_cell()).await?;
-        pg::join(
-            myself.get_id().to_string(),
-            vec![ratelimit.into(), link_spam.into()],
-        );
+            Actor::spawn_linked(None, LinkSpamMonitor, args.0.clone(), myself.get_cell()).await?;
+        monitors.push(link_spam.get_cell());
+        if matches!(args.2, MonitorInit::Join) {
+            let (captcha, _) = Actor::spawn_linked(
+                None,
+                CaptchaMonitor,
+                CaptchaInit {
+                    user_room_id: args.0.clone(),
+                    client: args.1.clone(),
+                },
+                myself.get_cell(),
+            )
+            .await?;
+            monitors.push(captcha.get_cell());
+        }
+        pg::join(myself.get_id().to_string(), monitors);
         Ok(MonitorState {
             age: 0,
             last_msg_age: 0,
@@ -71,6 +95,12 @@ impl Actor for Monitor {
                 }
             }
             msg @ MonitorMessage::RoomMessage(_) => {
+                for mon in sub_monitors {
+                    ActorRef::<MonitorMessage>::from(mon).cast(msg.clone())?;
+                }
+                state.last_msg_age = state.age;
+            }
+            msg @ MonitorMessage::ReactionMessage(_) => {
                 for mon in sub_monitors {
                     ActorRef::<MonitorMessage>::from(mon).cast(msg.clone())?;
                 }

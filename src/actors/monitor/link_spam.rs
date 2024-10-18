@@ -55,6 +55,7 @@ impl Actor for LinkSpamMonitor {
                     }
                 }
             }
+            _ => {}
         };
         Ok(())
     }

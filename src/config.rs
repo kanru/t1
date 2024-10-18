@@ -7,6 +7,7 @@ pub(crate) struct T1Config {
     pub(crate) t1bot: T1BotConfig,
     pub(crate) state_store: StateStoreConfig,
     pub(crate) rooms: RoomsConfig,
+    pub(crate) captcha: CaptchaConfig,
 }
 
 #[derive(Deserialize)]
@@ -27,4 +28,16 @@ pub(crate) struct StateStoreConfig {
 #[derive(Deserialize)]
 pub(crate) struct RoomsConfig {
     pub(crate) watching: Vec<String>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CaptchaConfig {
+    pub(crate) timeout_secs: u64,
+    pub(crate) questions: Vec<CaptchaQuestion>,
+}
+
+#[derive(Deserialize)]
+pub(crate) struct CaptchaQuestion {
+    pub(crate) body: String,
+    pub(crate) answer: u8,
 }

@@ -1,8 +1,9 @@
+use matrix_sdk::Client;
 use ractor::{registry, Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
 
 use crate::matrix::UserRoomId;
 
-use super::monitor::Monitor;
+use super::monitor::{Monitor, MonitorInit};
 
 pub(crate) struct Spawner;
 
@@ -12,23 +13,23 @@ pub(crate) enum SpawnerMessage {
 }
 
 impl Actor for Spawner {
-    type State = ();
     type Msg = SpawnerMessage;
-    type Arguments = ();
+    type State = Client;
+    type Arguments = Client;
 
     async fn pre_start(
         &self,
         _myself: ActorRef<Self::Msg>,
-        _arguments: Self::Arguments,
+        args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
-        Ok(())
+        Ok(args)
     }
 
     async fn handle(
         &self,
         myself: ActorRef<Self::Msg>,
         message: Self::Msg,
-        _state: &mut Self::State,
+        state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
         match message {
             SpawnerMessage::RegisterUser(user_room_id) => {
@@ -36,7 +37,7 @@ impl Actor for Spawner {
                     Actor::spawn_linked(
                         Some(user_room_id.to_string()),
                         Monitor,
-                        user_room_id,
+                        (user_room_id, state.clone(), MonitorInit::Msg),
                         myself.into(),
                     )
                     .await?;
@@ -47,7 +48,7 @@ impl Actor for Spawner {
                     Actor::spawn_linked(
                         Some(user_room_id.to_string()),
                         Monitor,
-                        user_room_id,
+                        (user_room_id, state.clone(), MonitorInit::Join),
                         myself.into(),
                     )
                     .await?;
