@@ -14,7 +14,10 @@ use matrix_sdk::{
     ruma::{
         events::{
             reaction::SyncReactionEvent,
-            room::{member::SyncRoomMemberEvent, message::SyncRoomMessageEvent},
+            room::{
+                member::{MembershipState, SyncRoomMemberEvent},
+                message::SyncRoomMessageEvent,
+            },
         },
         MilliSecondsSinceUnixEpoch, RoomOrAliasId, UserId,
     },
@@ -118,15 +121,31 @@ async fn main() -> anyhow::Result<()> {
     let my_id = t1bot.clone();
     client.add_event_handler(
         async move |ev: SyncRoomMemberEvent, room: Room| -> anyhow::Result<()> {
-            if ev.sender() == my_id {
-                return Ok(());
-            }
-            if let Some(spawner) = ActorRef::<SpawnerMessage>::where_is("spawner".into()) {
+            if let Some(ev) = ev.as_original() {
+                if ev.state_key == my_id {
+                    return Ok(());
+                }
                 let user_room_id = UserRoomId {
-                    user_id: ev.sender().into(),
+                    user_id: ev.state_key.clone(),
                     room_id: room.room_id().into(),
                 };
-                spawner.cast(SpawnerMessage::RegisterUserJoin(user_room_id))?;
+                match ev.content.membership {
+                    MembershipState::Join => {
+                        if let Some(spawner) =
+                            ActorRef::<SpawnerMessage>::where_is("spawner".into())
+                        {
+                            spawner.cast(SpawnerMessage::RegisterUserJoin(user_room_id))?;
+                        }
+                    }
+                    MembershipState::Leave => {
+                        if let Some(monitor) =
+                            ActorRef::<MonitorMessage>::where_is(user_room_id.to_string())
+                        {
+                            monitor.stop(Some("leave".into()));
+                        }
+                    }
+                    _ => {}
+                }
             }
             Ok(())
         },
