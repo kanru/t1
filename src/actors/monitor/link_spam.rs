@@ -1,7 +1,11 @@
 use ractor::{concurrency::Duration, Actor, ActorRef};
 
 use crate::{
-    actors::moderator::{ModeratorMessage, ViolationKind},
+    actors::{
+        config_provider::ConfigProviderMessage,
+        moderator::{ModeratorMessage, ViolationKind},
+    },
+    config::RoomConfig,
     matrix::UserRoomId,
 };
 
@@ -23,7 +27,34 @@ impl Actor for LinkSpamMonitor {
         myself: ractor::ActorRef<Self::Msg>,
         args: Self::Arguments,
     ) -> Result<Self::State, ractor::ActorProcessingErr> {
-        myself.send_after(Duration::from_secs(30), || MonitorMessage::Heartbeat);
+        if let Some(config_provider) =
+            ActorRef::<ConfigProviderMessage>::where_is("config_provider".into())
+        {
+            let config = config_provider
+                .call(ConfigProviderMessage::GetConfig, None)
+                .await?
+                .unwrap();
+
+            if let Some(link_spam) = config
+                .rooms
+                .get(args.room_id.as_str())
+                .and_then(|room| match room {
+                    // FIXME: respect enabled
+                    RoomConfig::RoomEnabled(_) => None,
+                    RoomConfig::RoomDetail {
+                        enabled: _,
+                        monitors,
+                    } => monitors.link_spam.clone(),
+                })
+                .or(config.monitors.link_spam)
+            {
+                myself.send_after(Duration::from_secs(link_spam.watch_timeout_secs), || {
+                    MonitorMessage::Heartbeat
+                });
+            } else {
+                myself.stop(Some("disabled".to_string()));
+            }
+        }
         Ok(LinkSpamState { user_room_id: args })
     }
 

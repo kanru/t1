@@ -125,6 +125,10 @@ async fn main() -> anyhow::Result<()> {
                 if ev.state_key == my_id {
                     return Ok(());
                 }
+                if ev.state_key.server_name().host() == "t2bot.io" {
+                    tracing::info!("Ignore messages from t2bot.io (Telegram Bridge)");
+                    return Ok(());
+                }
                 let user_room_id = UserRoomId {
                     user_id: ev.state_key.clone(),
                     room_id: room.room_id().into(),
@@ -181,7 +185,7 @@ async fn main() -> anyhow::Result<()> {
     );
 
     let server_names = &[t1bot.server_name().into()];
-    for room_id in &config.rooms.watching {
+    for room_id in config.rooms.keys() {
         client
             .join_room_by_id_or_alias(&RoomOrAliasId::parse(room_id)?, server_names)
             .await?;

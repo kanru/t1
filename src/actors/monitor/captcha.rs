@@ -15,6 +15,7 @@ use crate::{
         config_provider::ConfigProviderMessage,
         moderator::{ModeratorMessage, ViolationKind},
     },
+    config::RoomConfig,
     matrix::UserRoomId,
 };
 
@@ -65,60 +66,72 @@ impl Actor for CaptchaMonitor {
                 .await?
                 .unwrap();
 
-            let questions = config.captcha.questions;
-            let choose = rand::random::<usize>();
-            if let Some(question) = questions.get(choose % questions.len()) {
-                if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
-                    let user = state
-                        .client
-                        .get_profile(&state.user_room_id.user_id)
-                        .await?;
-                    let display_name = user
-                        .displayname
-                        .unwrap_or(state.user_room_id.user_id.localpart().to_string());
-                    let matrix_url = state.user_room_id.user_id.matrix_to_uri().to_string();
-                    let body = format!("{display_name}: {}", question.body);
-                    let html_body = format!(
-                        "<a href='{matrix_url}'>{display_name}</a>: {}",
-                        question.body
-                    );
-                    let content =
-                        RoomMessageEventContent::notice_html(body, html_body).add_mentions(
-                            Mentions::with_user_ids([state.user_room_id.user_id.clone()]),
+            if let Some(captcha) = config
+                .rooms
+                .get(state.user_room_id.room_id.as_str())
+                .and_then(|room| match room {
+                    RoomConfig::RoomEnabled(_) => None,
+                    RoomConfig::RoomDetail {
+                        enabled: _,
+                        monitors,
+                    } => monitors.captcha.clone(),
+                })
+                .or(config.monitors.captcha)
+            {
+                let choose = rand::random::<usize>();
+                if let Some(question) = captcha.questions.get(choose % captcha.questions.len()) {
+                    if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
+                        let user = state
+                            .client
+                            .get_profile(&state.user_room_id.user_id)
+                            .await?;
+                        let display_name = user
+                            .displayname
+                            .unwrap_or(state.user_room_id.user_id.localpart().to_string());
+                        let matrix_url = state.user_room_id.user_id.matrix_to_uri().to_string();
+                        let body = format!("{display_name}: {}", question.body);
+                        let html_body = format!(
+                            "<a href='{matrix_url}'>{display_name}</a>: {}",
+                            question.body
                         );
-                    let msg_response = room.send(content).await?;
-                    let option1 = ReactionEventContent::new(Annotation::new(
-                        msg_response.event_id.clone(),
-                        "1️⃣".to_string(),
-                    ));
-                    let option2 = ReactionEventContent::new(Annotation::new(
-                        msg_response.event_id.clone(),
-                        "2️⃣".to_string(),
-                    ));
-                    let option3 = ReactionEventContent::new(Annotation::new(
-                        msg_response.event_id.clone(),
-                        "3️⃣".to_string(),
-                    ));
-                    let option4 = ReactionEventContent::new(Annotation::new(
-                        msg_response.event_id.clone(),
-                        "4️⃣".to_string(),
-                    ));
-                    room.send(option1).await?;
-                    room.send(option2).await?;
-                    room.send(option3).await?;
-                    room.send(option4).await?;
-                    state.event_id = Some(msg_response.event_id);
-                    state.answer = match question.answer {
-                        1 => "1️⃣",
-                        2 => "2️⃣",
-                        3 => "3️⃣",
-                        4 => "4️⃣",
-                        _ => "*️⃣",
+                        let content =
+                            RoomMessageEventContent::notice_html(body, html_body).add_mentions(
+                                Mentions::with_user_ids([state.user_room_id.user_id.clone()]),
+                            );
+                        let msg_response = room.send(content).await?;
+                        let option1 = ReactionEventContent::new(Annotation::new(
+                            msg_response.event_id.clone(),
+                            "1️⃣".to_string(),
+                        ));
+                        let option2 = ReactionEventContent::new(Annotation::new(
+                            msg_response.event_id.clone(),
+                            "2️⃣".to_string(),
+                        ));
+                        let option3 = ReactionEventContent::new(Annotation::new(
+                            msg_response.event_id.clone(),
+                            "3️⃣".to_string(),
+                        ));
+                        let option4 = ReactionEventContent::new(Annotation::new(
+                            msg_response.event_id.clone(),
+                            "4️⃣".to_string(),
+                        ));
+                        room.send(option1).await?;
+                        room.send(option2).await?;
+                        room.send(option3).await?;
+                        room.send(option4).await?;
+                        state.event_id = Some(msg_response.event_id);
+                        state.answer = match question.answer {
+                            1 => "1️⃣",
+                            2 => "2️⃣",
+                            3 => "3️⃣",
+                            4 => "4️⃣",
+                            _ => "*️⃣",
+                        }
+                        .to_string();
+                        myself.send_after(Duration::from_secs(captcha.timeout_secs), || {
+                            MonitorMessage::Heartbeat
+                        });
                     }
-                    .to_string();
-                    myself.send_after(Duration::from_secs(config.captcha.timeout_secs), || {
-                        MonitorMessage::Heartbeat
-                    });
                 }
             }
         }
