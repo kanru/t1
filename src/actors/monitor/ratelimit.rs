@@ -67,7 +67,10 @@ impl Actor for RateLimitMonitor {
                 state.bucket.fill_rate = rate_limit.fill_rate;
                 state.bucket.fill_freq = Duration::from_secs(rate_limit.fill_freq_secs);
                 state.config = rate_limit;
-                myself.send_after(state.bucket.fill_freq, || MonitorMessage::Heartbeat);
+                myself.send_after(
+                    Duration::from_secs(state.config.token_new_timeout_secs),
+                    || MonitorMessage::Heartbeat,
+                );
             } else {
                 myself.stop(Some("disabled".into()));
             }

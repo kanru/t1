@@ -46,6 +46,7 @@ pub(crate) enum RoomConfig {
 pub(crate) struct RateLimitConfig {
     pub(crate) token_new: f32,
     pub(crate) token_new_max: f32,
+    pub(crate) token_new_timeout_secs: u64,
     pub(crate) token_join: f32,
     pub(crate) token_join_max: f32,
     pub(crate) fill_rate: f32,
