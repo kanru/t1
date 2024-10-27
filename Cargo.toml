@@ -16,7 +16,7 @@ tracing-subscriber = "0.3.18"
 xflags = "0.3.2"
 
 [dependencies.ractor]
-version = "0.12.2"
+version = "0.13.0"
 default-features = false
 features = ["tokio_runtime"]
 
