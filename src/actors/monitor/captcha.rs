@@ -157,8 +157,9 @@ impl Actor for CaptchaMonitor {
                 }
                 if let Some(my_event_id) = &state.event_id {
                     if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
-                        myself.stop(Some("answered".to_string()));
+                        myself.stop(Some("moderated".to_string()));
                         room.redact(&my_event_id, None, None).await?;
+                        state.event_id.take();
                     }
                 }
             }
@@ -181,6 +182,7 @@ impl Actor for CaptchaMonitor {
                             if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
                                 myself.stop(Some("answered".to_string()));
                                 room.redact(&my_event_id, None, None).await?;
+                                state.event_id.take();
                             }
                         }
                     }
@@ -188,6 +190,20 @@ impl Actor for CaptchaMonitor {
             }
             _ => {}
         };
+        Ok(())
+    }
+
+    async fn post_stop(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        state: &mut Self::State,
+    ) -> Result<(), ractor::ActorProcessingErr> {
+        if let Some(my_event_id) = &state.event_id {
+            if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
+                myself.stop(Some("stopped".to_string()));
+                room.redact(&my_event_id, None, None).await?;
+            }
+        }
         Ok(())
     }
 }

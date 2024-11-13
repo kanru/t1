@@ -80,6 +80,15 @@ impl Actor for Monitor {
         Ok(())
     }
 
+    async fn post_stop(
+        &self,
+        myself: ActorRef<Self::Msg>,
+        _state: &mut Self::State,
+    ) -> Result<(), ActorProcessingErr> {
+        myself.stop_children(None);
+        Ok(())
+    }
+
     async fn handle(
         &self,
         myself: ActorRef<Self::Msg>,
