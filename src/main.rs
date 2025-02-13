@@ -1,5 +1,3 @@
-#![feature(async_closure)]
-
 use std::{fs, path::PathBuf};
 
 use actors::{
