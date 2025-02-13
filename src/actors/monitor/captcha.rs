@@ -78,12 +78,13 @@ impl Actor for CaptchaMonitor {
                 })
                 .or(config.monitors.captcha)
             {
-                let choose = rand::random::<usize>();
+                let choose = rand::random::<u32>() as usize;
                 if let Some(question) = captcha.questions.get(choose % captcha.questions.len()) {
                     if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
                         let user = state
                             .client
-                            .get_profile(&state.user_room_id.user_id)
+                            .account()
+                            .fetch_user_profile_of(&state.user_room_id.user_id)
                             .await?;
                         let display_name = user
                             .displayname
