@@ -48,7 +48,7 @@ async fn main() -> anyhow::Result<()> {
         .request_config(RequestConfig::short_retry())
         .sqlite_store(
             &config.state_store.path,
-            config.state_store.password.as_ref().map(String::as_str),
+            config.state_store.password.as_deref(),
         )
         .build()
         .await?;
@@ -107,10 +107,8 @@ async fn main() -> anyhow::Result<()> {
             };
             if let Some(monitor) = ActorRef::<MonitorMessage>::where_is(user_room_id.to_string()) {
                 monitor.cast(MonitorMessage::RoomMessage(ev))?;
-            } else {
-                if let Some(spawner) = ActorRef::<SpawnerMessage>::where_is("spawner".into()) {
-                    spawner.cast(SpawnerMessage::RegisterUser(user_room_id))?;
-                }
+            } else if let Some(spawner) = ActorRef::<SpawnerMessage>::where_is("spawner".into()) {
+                spawner.cast(SpawnerMessage::RegisterUser(user_room_id))?;
             }
             Ok(())
         },
