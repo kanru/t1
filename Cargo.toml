@@ -1,6 +1,6 @@
 [package]
 name = "t1"
-version = "0.1.0"
+version = "0.1.1"
 description = "A matrix moderation bot build on Matrix-Rust-SDK, Ractor, and Tokio"
 license = "MIT OR Apache-2.0"
 edition = "2021"
