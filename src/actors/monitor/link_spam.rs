@@ -1,4 +1,5 @@
 use ractor::{concurrency::Duration, Actor, ActorRef};
+use tracing::info;
 
 use crate::{
     actors::{
@@ -27,13 +28,8 @@ impl Actor for LinkSpamMonitor {
         myself: ractor::ActorRef<Self::Msg>,
         args: Self::Arguments,
     ) -> Result<Self::State, ractor::ActorProcessingErr> {
-        if let Some(config_provider) =
-            ActorRef::<ConfigProviderMessage>::where_is("config_provider".into())
-        {
-            let config = config_provider
-                .call(ConfigProviderMessage::GetConfig, None)
-                .await?
-                .unwrap();
+        if let Some(config_provider) = ActorRef::where_is("config_provider".into()) {
+            let config = ractor::call!(config_provider, ConfigProviderMessage::GetConfig)?;
 
             if let Some(link_spam) = config
                 .rooms
@@ -73,13 +69,15 @@ impl Actor for LinkSpamMonitor {
                     if evt.content.body().contains("https://")
                         || evt.content.body().contains("http://")
                     {
-                        if let Some(moderator) =
-                            ActorRef::<ModeratorMessage>::where_is("moderator".into())
-                        {
-                            moderator.cast(ModeratorMessage::Violation {
-                                user_room_id: state.user_room_id.clone(),
-                                kind: ViolationKind::Spam,
-                            })?;
+                        info!(user = %state.user_room_id, "user posted link right after join");
+                        if let Some(moderator) = ActorRef::where_is("moderator".into()) {
+                            ractor::cast!(
+                                moderator,
+                                ModeratorMessage::Violation {
+                                    user_room_id: state.user_room_id.clone(),
+                                    kind: ViolationKind::Spam,
+                                }
+                            )?;
                         } else {
                             tracing::error!("Unable to find moderator");
                         }

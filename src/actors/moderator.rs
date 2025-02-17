@@ -1,5 +1,6 @@
 use matrix_sdk::Client;
 use ractor::{Actor, ActorProcessingErr, ActorRef};
+use tracing::info;
 
 use crate::matrix::UserRoomId;
 
@@ -41,11 +42,9 @@ impl Actor for Moderator {
         match message {
             ModeratorMessage::Violation { user_room_id, kind } => {
                 if let Some(room) = state.get_room(&user_room_id.room_id) {
-                    tracing::info!(
+                    info!(
                         "Kicking user {} from {} for {:?}",
-                        user_room_id.user_id,
-                        user_room_id.room_id,
-                        kind
+                        user_room_id.user_id, user_room_id.room_id, kind
                     );
                     room.kick_user(&user_room_id.user_id, Some(format!("{:?}", kind).as_str()))
                         .await?;

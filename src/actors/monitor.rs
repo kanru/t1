@@ -6,6 +6,7 @@ use matrix_sdk::{
 };
 use ractor::{concurrency::Duration, pg, Actor, ActorProcessingErr, ActorRef};
 use ratelimit::RateLimitMonitor;
+use tracing::{error, info};
 
 use crate::matrix::UserRoomId;
 
@@ -44,20 +45,31 @@ impl Actor for Monitor {
         myself: ActorRef<Self::Msg>,
         args: Self::Arguments,
     ) -> Result<Self::State, ActorProcessingErr> {
+        let (user_room_id, client, init) = args;
         let mut monitors = vec![];
-        let (ratelimit, _) =
-            Actor::spawn_linked(None, RateLimitMonitor, args.0.clone(), myself.get_cell()).await?;
+        let (ratelimit, _) = Actor::spawn_linked(
+            None,
+            RateLimitMonitor,
+            user_room_id.clone(),
+            myself.get_cell(),
+        )
+        .await?;
+        let (link_spam, _) = Actor::spawn_linked(
+            None,
+            LinkSpamMonitor,
+            user_room_id.clone(),
+            myself.get_cell(),
+        )
+        .await?;
         monitors.push(ratelimit.get_cell());
-        let (link_spam, _) =
-            Actor::spawn_linked(None, LinkSpamMonitor, args.0.clone(), myself.get_cell()).await?;
         monitors.push(link_spam.get_cell());
-        if matches!(args.2, MonitorInit::Join) {
+        if matches!(init, MonitorInit::Join) {
             let (captcha, _) = Actor::spawn_linked(
                 None,
                 CaptchaMonitor,
                 CaptchaInit {
-                    user_room_id: args.0.clone(),
-                    client: args.1.clone(),
+                    user_room_id,
+                    client,
                 },
                 myself.get_cell(),
             )
@@ -103,15 +115,15 @@ impl Actor for Monitor {
                     myself.stop(Some("idled too long".into()));
                 }
             }
-            msg @ MonitorMessage::RoomMessage(_) => {
+            MonitorMessage::RoomMessage(_) => {
                 for mon in sub_monitors {
-                    ActorRef::<MonitorMessage>::from(mon).cast(msg.clone())?;
+                    ractor::cast!(ActorRef::from(mon), message.clone())?;
                 }
                 state.last_msg_age = state.age;
             }
-            msg @ MonitorMessage::ReactionMessage(_) => {
+            MonitorMessage::ReactionMessage(_) => {
                 for mon in sub_monitors {
-                    ActorRef::<MonitorMessage>::from(mon).cast(msg.clone())?;
+                    ractor::cast!(ActorRef::from(mon), message.clone())?;
                 }
                 state.last_msg_age = state.age;
             }
@@ -127,21 +139,18 @@ impl Actor for Monitor {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             ractor::SupervisionEvent::ActorStarted(actor_cell) => {
-                tracing::info!(actor = actor_cell.get_id().to_string(), "Actor started")
+                info!(actor = actor_cell.get_id().to_string(), "Actor started")
             }
             ractor::SupervisionEvent::ActorTerminated(actor_cell, _, reason) => {
-                tracing::info!(
+                info!(
                     actor = actor_cell.get_id().to_string(),
                     reason = reason,
                     "Actor stopped"
                 );
             }
             ractor::SupervisionEvent::ActorFailed(actor_cell, error) => {
-                tracing::info!(
-                    actor = actor_cell.get_id().to_string(),
-                    error = error,
-                    "Actor failed"
-                );
+                error!("{error:?}");
+                info!(actor = actor_cell.get_id().to_string(), "Actor failed");
                 return Err(error);
             }
             _ => {}

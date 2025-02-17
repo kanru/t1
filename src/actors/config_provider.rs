@@ -30,10 +30,10 @@ impl Actor for ConfigProvider {
         state: &mut Self::State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         match message {
-            ConfigProviderMessage::GetConfig(rpc_reply_port) => {
+            ConfigProviderMessage::GetConfig(reply) => {
                 let config_text = fs::read_to_string(state)?;
                 let config: T1Config = toml::from_str(&config_text)?;
-                rpc_reply_port.send(config)?;
+                reply.send(config)?;
             }
         };
         Ok(())

@@ -9,6 +9,7 @@ use matrix_sdk::{
     Client,
 };
 use ractor::{concurrency::Duration, Actor, ActorRef};
+use tracing::{error, info};
 
 use crate::{
     actors::{
@@ -58,13 +59,8 @@ impl Actor for CaptchaMonitor {
         myself: ractor::ActorRef<Self::Msg>,
         state: &mut Self::State,
     ) -> Result<(), ractor::ActorProcessingErr> {
-        if let Some(config_provider) =
-            ActorRef::<ConfigProviderMessage>::where_is("config_provider".into())
-        {
-            let config = config_provider
-                .call(ConfigProviderMessage::GetConfig, None)
-                .await?
-                .unwrap();
+        if let Some(config_provider) = ActorRef::where_is("config_provider".into()) {
+            let config = ractor::call!(config_provider, ConfigProviderMessage::GetConfig)?;
 
             if let Some(captcha) = config
                 .rooms
@@ -116,16 +112,22 @@ impl Actor for CaptchaMonitor {
                             msg_response.event_id.clone(),
                             "4️⃣".to_string(),
                         ));
+                        let option5 = ReactionEventContent::new(Annotation::new(
+                            msg_response.event_id.clone(),
+                            "5️⃣".to_string(),
+                        ));
                         room.send(option1).await?;
                         room.send(option2).await?;
                         room.send(option3).await?;
                         room.send(option4).await?;
+                        room.send(option5).await?;
                         state.event_id = Some(msg_response.event_id);
                         state.answer = match question.answer {
                             1 => "1️⃣",
                             2 => "2️⃣",
                             3 => "3️⃣",
                             4 => "4️⃣",
+                            5 => "5️⃣",
                             _ => "*️⃣",
                         }
                         .to_string();
@@ -147,43 +149,49 @@ impl Actor for CaptchaMonitor {
     ) -> Result<(), ractor::ActorProcessingErr> {
         match message {
             MonitorMessage::Heartbeat => {
-                if let Some(moderator) = ActorRef::<ModeratorMessage>::where_is("moderator".into())
-                {
-                    moderator.cast(ModeratorMessage::Violation {
-                        user_room_id: state.user_room_id.clone(),
-                        kind: ViolationKind::LikelyBot,
-                    })?;
+                info!(user = %state.user_room_id, "user did not answer in time");
+                if let Some(moderator) = ActorRef::where_is("moderator".into()) {
+                    ractor::cast!(
+                        moderator,
+                        ModeratorMessage::Violation {
+                            user_room_id: state.user_room_id.clone(),
+                            kind: ViolationKind::LikelyBot,
+                        }
+                    )?;
                 } else {
-                    tracing::error!("Unable to find moderator");
+                    error!("Unable to find moderator");
                 }
                 if let Some(my_event_id) = &state.event_id {
                     if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
-                        myself.stop(Some("moderated".to_string()));
                         room.redact(my_event_id, None, None).await?;
                         state.event_id.take();
+                        myself.stop(Some("moderated".to_string()));
                     }
                 }
             }
             MonitorMessage::ReactionMessage(msg) => {
+                info!(user = %state.user_room_id, "user answered");
                 if let Some(msg) = msg.as_original() {
                     if let Some(my_event_id) = &state.event_id {
                         if msg.content.relates_to.event_id == *my_event_id {
                             if msg.content.relates_to.key != state.answer {
-                                if let Some(moderator) =
-                                    ActorRef::<ModeratorMessage>::where_is("moderator".into())
-                                {
-                                    moderator.cast(ModeratorMessage::Violation {
-                                        user_room_id: state.user_room_id.clone(),
-                                        kind: ViolationKind::LikelyBot,
-                                    })?;
+                                info!(user = %state.user_room_id, "user provided wrong answer");
+                                if let Some(moderator) = ActorRef::where_is("moderator".into()) {
+                                    ractor::cast!(
+                                        moderator,
+                                        ModeratorMessage::Violation {
+                                            user_room_id: state.user_room_id.clone(),
+                                            kind: ViolationKind::LikelyBot,
+                                        }
+                                    )?;
                                 } else {
-                                    tracing::error!("Unable to find moderator");
+                                    error!("Unable to find moderator");
                                 }
                             }
                             if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
-                                myself.stop(Some("answered".to_string()));
                                 room.redact(my_event_id, None, None).await?;
                                 state.event_id.take();
+                                myself.stop(Some("answered".to_string()));
                             }
                         }
                     }
@@ -200,9 +208,10 @@ impl Actor for CaptchaMonitor {
         state: &mut Self::State,
     ) -> Result<(), ractor::ActorProcessingErr> {
         if let Some(my_event_id) = &state.event_id {
+            info!(user = %state.user_room_id, "user left without answer, redacting captcha");
             if let Some(room) = state.client.get_room(&state.user_room_id.room_id) {
-                myself.stop(Some("stopped".to_string()));
                 room.redact(my_event_id, None, None).await?;
+                myself.stop(Some("stopped".to_string()));
             }
         }
         Ok(())

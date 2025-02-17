@@ -2,6 +2,7 @@ use std::path::PathBuf;
 
 use matrix_sdk::Client;
 use ractor::{Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
+use tracing::{error, info};
 
 use super::{config_provider::ConfigProvider, moderator::Moderator, spawner::Spawner};
 
@@ -72,17 +73,14 @@ impl Actor for Supervisor {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             SupervisionEvent::ActorStarted(actor_cell) => {
-                tracing::info!(actor = actor_cell.get_name(), "Actor started");
+                info!(actor = actor_cell.get_name(), "Actor started");
             }
             SupervisionEvent::ActorTerminated(actor_cell, _, _) => {
-                tracing::info!(actor = actor_cell.get_name(), "Actor stopped");
+                info!(actor = actor_cell.get_name(), "Actor stopped");
             }
             SupervisionEvent::ActorFailed(actor_cell, error) => {
-                tracing::error!(
-                    actor = actor_cell.get_name(),
-                    error = error,
-                    "Restarting failed actor"
-                );
+                error!("{error:?}");
+                info!(actor = actor_cell.get_name(), "Restarting failed actor");
                 if let Some(name) = actor_cell.get_name() {
                     match name.as_str() {
                         "spawner" => start_spawner(&myself, state.client.clone()).await?,
@@ -95,7 +93,7 @@ impl Actor for Supervisor {
                 }
             }
             SupervisionEvent::ProcessGroupChanged(_) => {
-                tracing::info!("PG changed");
+                info!("PG changed");
             }
         };
         Ok(())

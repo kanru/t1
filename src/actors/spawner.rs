@@ -1,5 +1,6 @@
 use matrix_sdk::Client;
 use ractor::{registry, Actor, ActorProcessingErr, ActorRef, SupervisionEvent};
+use tracing::{error, info};
 
 use crate::matrix::UserRoomId;
 
@@ -67,21 +68,18 @@ impl Actor for Spawner {
     ) -> Result<(), ActorProcessingErr> {
         match message {
             SupervisionEvent::ActorStarted(actor_cell) => {
-                tracing::info!(actor = actor_cell.get_name(), "Actor started");
+                info!(actor = actor_cell.get_name(), "Actor started");
             }
             SupervisionEvent::ActorTerminated(actor_cell, _, reason) => {
-                tracing::info!(
+                info!(
                     actor = actor_cell.get_name(),
                     reason = reason,
                     "Actor stopped"
                 );
             }
             SupervisionEvent::ActorFailed(actor_cell, error) => {
-                tracing::error!(
-                    actor = actor_cell.get_id().to_string(),
-                    error = error,
-                    "Actor failed"
-                );
+                error!("{error:?}");
+                error!(actor = actor_cell.get_id().to_string(), "Actor failed");
             }
             _ => {}
         };

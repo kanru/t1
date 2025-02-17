@@ -1,4 +1,5 @@
 use ractor::{concurrency::Duration, Actor, ActorProcessingErr, ActorRef};
+use tracing::{error, info};
 
 use crate::{
     actors::{
@@ -41,13 +42,8 @@ impl Actor for RateLimitMonitor {
         myself: ActorRef<Self::Msg>,
         state: &mut Self::State,
     ) -> Result<(), ActorProcessingErr> {
-        if let Some(config_provider) =
-            ActorRef::<ConfigProviderMessage>::where_is("config_provider".into())
-        {
-            let config = config_provider
-                .call(ConfigProviderMessage::GetConfig, None)
-                .await?
-                .unwrap();
+        if let Some(config_provider) = ActorRef::where_is("config_provider".into()) {
+            let config = ractor::call!(config_provider, ConfigProviderMessage::GetConfig)?;
 
             if let Some(rate_limit) = config
                 .rooms
@@ -94,15 +90,17 @@ impl Actor for RateLimitMonitor {
             }
             MonitorMessage::RoomMessage(_) | MonitorMessage::ReactionMessage(_) => {
                 if !state.bucket.consume(1.0) {
-                    if let Some(moderator) =
-                        ActorRef::<ModeratorMessage>::where_is("moderator".into())
-                    {
-                        moderator.cast(ModeratorMessage::Violation {
-                            user_room_id: state.user_room_id.clone(),
-                            kind: ViolationKind::Spam,
-                        })?;
+                    info!(user = %state.user_room_id, "user exceeded rate limit");
+                    if let Some(moderator) = ActorRef::where_is("moderator".into()) {
+                        ractor::cast!(
+                            moderator,
+                            ModeratorMessage::Violation {
+                                user_room_id: state.user_room_id.clone(),
+                                kind: ViolationKind::Spam,
+                            }
+                        )?;
                     } else {
-                        tracing::error!("Unable to find moderator");
+                        error!("Unable to find moderator");
                     }
                 }
             }
