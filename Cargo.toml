@@ -1,5 +1,5 @@
 [package]
-name = "t1"
+name = "t1bot"
 version = "0.1.1"
 description = "A matrix moderation bot build on Matrix-Rust-SDK, Ractor, and Tokio"
 keywords = ["matrix", "moderation", "tokio", "ractor"]
