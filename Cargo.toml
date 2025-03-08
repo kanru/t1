@@ -2,6 +2,8 @@
 name = "t1"
 version = "0.1.1"
 description = "A matrix moderation bot build on Matrix-Rust-SDK, Ractor, and Tokio"
+keywords = ["matrix", "moderation", "tokio", "ractor"]
+repository = "https://github.com/kanru/t1"
 license = "MIT OR Apache-2.0"
 edition = "2024"
 resolver = "3"
