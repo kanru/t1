@@ -10,7 +10,7 @@ resolver = "3"
 
 [dependencies]
 anyhow = "1.0.89"
-matrix-sdk = "0.12.0"
+matrix-sdk = "0.13.0"
 rand = "0.9.0"
 serde = { version = "1.0.210", features = ["derive"] }
 toml = "0.8.19"
